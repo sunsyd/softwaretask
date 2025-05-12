@@ -1,0 +1,57 @@
+----------------------------------------------------V1.0----------------------------------------------------------------------
+根地址: https://localhost:44310 可改
+
+数学函数
+基础运算: +, -, *, /, ^（幂运算，如 2^3=8）
+
+三角函数: sin(x), cos(x), tan(x)（角度制）
+
+对数指数开方: log(x, [base]), ln(x), exp(x) sqrt(x)（e的x次方）
+
+幂函数: , pow(x, y）
+
+支持e，pi输入
+计算结果保留8位小数。
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+登录
+端点: /auth/login
+方法: POST
+请求体:
+{
+    "Username": "admin",
+    "Password": "admin123"
+}
+成功响应:
+{
+    "Token": "dummy-token"  具体内容可改
+}
+
+示例访问代码 javascript
+fetch('https://localhost:44310/auth/login', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        Username: 'admin',
+        Password: 'admin123'
+    })
+})
+.then(response => response.json())
+.then(data => console.log('Token:', data.Token));
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+计算
+端点: /calculator/calculate
+方法: POST
+请求体:
+{
+    "Expression": "sqrt(16)+sin(30)*e" 没有空格，全小写
+}
+成功响应:
+{
+    "Result": 4.5
+}
