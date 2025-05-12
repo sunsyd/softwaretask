@@ -18,3 +18,105 @@
         ┌────▼────┐
         │ 返回结果 │ → 返回前端
         └─────────┘
+作为计算系统的中间层，负责：
+1.接收前端传来的表达式 JSON（如表达式字符串等）；
+2.解析字符串表达式，构建函数调用树（AST-like）结构；
+3.将函数调用树格式发送给后端计算服务；
+4.接收后端计算结果，并返回给前端
+
+具体实现:
+from flask import Flask, request, jsonify
+import math
+
+app = Flask(__name__)
+
+# 常量映射
+CONSTANTS = {
+    'π': math.pi
+}
+
+# 基本操作符映射
+OPERATORS = {
+    '+': 'add',
+    '−': 'subtract',
+    '-': 'subtract',
+    '×': 'multiply',
+    '*': 'multiply',
+    '/': 'divide'
+}
+
+# 简单的表达式解析器
+def parse_expression(expr: str):
+    """
+    示例解析器：这里只处理一个固定的表达式结构，
+    实际项目中应写成递归解析器，或者用表达式语法树库。
+    """
+    if expr == "sin(π/4)×√(16)+log(100)−5!":
+        return {
+            "type": "operation",
+            "operator": "subtract",
+            "left": {
+                "type": "operation",
+                "operator": "add",
+                "left": {
+                    "type": "operation",
+                    "operator": "multiply",
+                    "left": {
+                        "type": "function",
+                        "func": "sin",
+                        "args": [{
+                            "type": "operation",
+                            "operator": "divide",
+                            "left": {"type": "constant", "value": math.pi},
+                            "right": {"type": "number", "value": 4}
+                        }]
+                    },
+                    "right": {
+                        "type": "function",
+                        "func": "sqrt",
+                        "args": [{"type": "number", "value": 16}]
+                    }
+                },
+                "right": {
+                    "type": "function",
+                    "func": "log10",
+                    "args": [{"type": "number", "value": 100}]
+                }
+            },
+            "right": {
+                "type": "function",
+                "func": "factorial",
+                "args": [{"type": "number", "value": 5}]
+            }
+        }
+    else:
+        return {
+            "error": "表达式未实现解析器，请扩展 parse_expression 函数"
+        }
+
+@app.route('/parse', methods=['POST'])
+def handle_request():
+    data = request.get_json()
+    expr = data.get('expression')
+
+    if not expr:
+        return jsonify({"error": "缺少表达式"}), 400
+
+    parsed = parse_expression(expr)
+
+    # 发送到后端计算服务（这里模拟）
+    # 通常你会使用 requests.post(url, json=parsed)
+    # 假设后端返回如下：
+    backend_response = {
+        "Success": True,
+        "Result": -115.17157287525381,
+        "ErrorMessage": None
+    }
+
+    return jsonify({
+        "parsed": parsed,
+        "backendResult": backend_response
+    })
+
+if __name__ == '__main__':
+    app.run(port=5001)
