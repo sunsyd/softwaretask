@@ -1,4 +1,4 @@
-![](C:\Users\ssy\Desktop\jisuanqi\图片1.png)
+![](./ssyimg.png)
 
 #### **前端界面：**
 
