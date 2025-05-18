@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>精准光标定位的Vue计算器（带错误提示）</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --mono-font: 'Courier New', Courier, monospace;
+        }
+
+        .calculator-btn {
+            padding: 0.8rem;
+            transition: all 0.2s ease;
+            min-width: 3.5rem;
+        }
+
+        .calculator-btn:hover {
+            filter: brightness(0.9);
+        }
+
+        .cursor-indicator {
+            position: absolute;
+            background-color: #ff0000;
+            animation: blink 1s step-end infinite;
+            width: 2px;
+            height: 24px;
+            top: 50%;
+            transform: translateY(-100%);
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .loading-indicator {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .display-container {
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            position: relative;
+            height: 80px;
+        }
+
+        .input-text {
+            white-space: nowrap;
+            position: relative;
+            font-family: var(--mono-font);
+            font-size: 24px;
+            line-height: 32px;
+            min-height: 60px;
+            display: inline-block;
+        }
+
+        .result-container {
+            font-family: var(--mono-font);
+            font-size: 20px;
+            color: #333;
+            text-align: right;
+            margin-top: 0.8rem;
+            min-height: 32px;
+        }
+
+        .result-value {
+            font-weight: bold;
+        }
+
+        .result-unit {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="bg-white rounded-lg shadow-2xl max-w-2xl w-full">
+        <div class="p-4 md:p-6">
+            <!-- 模式与单位切换 -->
+            <div class="mb-4 flex gap-3 flex-wrap">
+                <button 
+                    @click="isScientific = !isScientific"
+                    class="bg-blue-100 text-blue-600 calculator-btn rounded">
+                    {{ isScientific ? '基础模式' : '科学模式' }}
+                </button>
+                <button 
+                    v-if="isScientific"
+                    @click="angleUnit = angleUnit === 'deg' ? 'rad' : 'deg'"
+                    class="bg-green-100 text-green-600 calculator-btn rounded">
+                    {{ angleUnit === 'deg' ? '角度' : '弧度' }}
+                </button>
+            </div>
+
+            <!-- 显示区域（带滚动和光标） -->
+            <div class="mb-4 display-container" ref="displayRef">
+                <div class="text-right text-sm text-gray-500 mb-2">输入</div>
+                <div 
+                    class="text-right input-text" 
+                    ref="inputRef"
+                >
+                    {{ currentInput }}
+                    <span 
+                        class="cursor-indicator" 
+                        :style="{ left: `${cursorLeft}px` }"
+                    ></span>
+                </div>
+                <!-- 结果显示区域（优化：明确条件判断） -->
+                <div class="result-container" v-if="showResult">
+                    <span class="result-value">{{ result }}</span>
+                    <span v-if="unit" class="result-unit">(</span>{{ unit }}<span v-if="unit" class="result-unit">)</span>
+                </div>
+                <!-- 加载和错误提示（优化：明确优先级） -->
+                <div v-if="loading" class="text-center text-blue-500 mt-2">
+                    <i class="fa fa-spinner loading-indicator"></i> 计算中...
+                </div>
+                <div v-if="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-2">
+                    {{ errorMessage }}
+                </div>
+            </div>
+
+            <!-- 按钮区域 -->
+            <div class="grid grid-cols-5 gap-3" :class="!isScientific ? 'grid-cols-4' : 'md:grid-cols-5'">
+                <!-- 控制按钮 -->
+                <button @click="handleClear" class="bg-gray-200 text-gray-700 calculator-btn rounded">AC</button>
+                <button @click="handleDelete" class="bg-gray-200 text-gray-700 calculator-btn rounded">DEL</button>
+                <button @click="moveCursorLeft" class="bg-pink-100 text-pink-600 calculator-btn rounded">←</button>
+                <button @click="moveCursorRight" class="bg-pink-100 text-pink-600 calculator-btn rounded">→</button>
+                <template v-if="isScientific">
+                    <button @click="appendFunction('√')" class="bg-purple-100 text-purple-600 calculator-btn rounded">√</button>
+                    <button @click="appendFunction('x²')" class="bg-purple-100 text-purple-600 calculator-btn rounded">x²</button>
+                    <button @click="appendFunction('x³')" class="bg-purple-100 text-purple-600 calculator-btn rounded">x³</button>
+                </template>
+
+                <!-- 运算符按钮 -->
+                <button @click="appendOperator('/')" class="bg-orange-100 text-orange-600 calculator-btn rounded">/</button>
+                <button @click="appendOperator('*')" class="bg-orange-100 text-orange-600 calculator-btn rounded">×</button>
+                <button @click="appendOperator('-')" class="bg-orange-100 text-orange-600 calculator-btn rounded">-</button>
+                <button @click="appendOperator('+')" class="bg-orange-100 text-orange-600 calculator-btn rounded">+</button>
+
+                <!-- 数字按钮 -->
+                <button v-for="num in [7,8,9]" :key="num" @click="appendNumber(num)" class="bg-gray-50 text-gray-800 calculator-btn rounded">{{ num }}</button>
+                <button v-for="num in [4,5,6]" :key="num" @click="appendNumber(num)" class="bg-gray-50 text-gray-800 calculator-btn rounded">{{ num }}</button>
+                <button v-for="num in [1,2,3]" :key="num" @click="appendNumber(num)" class="bg-gray-50 text-gray-800 calculator-btn rounded">{{ num }}</button>
+                <button @click="appendNumber(0)" class="bg-gray-50 text-gray-800 calculator-btn rounded col-span-2">0</button>
+                <button @click="appendDecimal" class="bg-gray-50 text-gray-800 calculator-btn rounded">.</button>
+
+                <!-- 科学功能扩展 -->
+                <template v-if="isScientific">
+                    <button @click="appendFunction('sin')" class="bg-purple-100 text-purple-600 calculator-btn rounded">sin</button>
+                    <button @click="appendFunction('cos')" class="bg-purple-100 text-purple-600 calculator-btn rounded">cos</button>
+                    <button @click="appendFunction('tan')" class="bg-purple-100 text-purple-600 calculator-btn rounded">tan</button>
+                    <button @click="appendFunction('ln')" class="bg-purple-100 text-purple-600 calculator-btn rounded">ln</button>
+                    <button @click="appendFunction('log')" class="bg-purple-100 text-purple-600 calculator-btn rounded">log</button>
+                    <button @click="appendFunction('!')" class="bg-purple-100 text-purple-600 calculator-btn rounded">n!</button>
+                    <button @click="appendText('π')" class="bg-purple-100 text-purple-600 calculator-btn rounded">π</button>
+                    <button @click="appendText('e')" class="bg-purple-100 text-purple-600 calculator-btn rounded">e</button>
+                    <button @click="appendFunction('x^y')" class="bg-purple-100 text-purple-600 calculator-btn rounded">x^y</button>
+                    <button @click="appendFunction('10^x')" class="bg-purple-100 text-purple-600 calculator-btn rounded">10^x</button>
+                </template>
+
+                <!-- 计算按钮 -->
+                <button @click="calculate" class="bg-orange-100 text-orange-600 calculator-btn rounded col-span-2 row-span-2">=</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, watch, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const currentInput = ref('');
+                const cursorPosition = ref(0);
+                const isScientific = ref(false);
+                const angleUnit = ref('deg');
+                const loading = ref(false);
+                const errorMessage = ref('');
+                const inputRef = ref(null);
+                const displayRef = ref(null);
+                const result = ref('');        
+                const unit = ref('');          
+                const showResult = ref(false); 
+
+                // 光标位置计算
+                const cursorLeft = computed(() => {
+                    if (!inputRef.value) return 0;
+                    const text = currentInput.value.slice(0, cursorPosition.value);
+                    const tempSpan = document.createElement('span');
+                    tempSpan.style.cssText = `
+                        position: absolute;
+                        visibility: hidden;
+                        white-space: nowrap;
+                        font: inherit;
+                        font-size: inherit;
+                        line-height: inherit;
+                    `;
+                    tempSpan.textContent = text;
+                    inputRef.value.appendChild(tempSpan);
+                    const width = tempSpan.offsetWidth;
+                    tempSpan.remove();
+                    return width;
+                });
+
+                // 自动滚动
+                watch([cursorPosition, currentInput], async () => {
+                    await nextTick();
+                    if (!displayRef.value || !inputRef.value) return;
+                    const scrollLeft = cursorLeft.value - (displayRef.value.clientWidth - inputRef.value.offsetWidth) / 2;
+                    displayRef.value.scrollLeft = Math.max(0, Math.min(scrollLeft, inputRef.value.offsetWidth));
+                });
+
+                const insertAtCursor = (str, val) => 
+                    str.slice(0, cursorPosition.value) + val + str.slice(cursorPosition.value);
+
+                const appendNumber = (num) => {
+                    currentInput.value = insertAtCursor(currentInput.value, num.toString());
+                    cursorPosition.value++;
+                };
+
+                const appendDecimal = () => {
+                    if (/[\d]$/.test(currentInput.value.slice(0, cursorPosition.value))) {
+                        currentInput.value = insertAtCursor(currentInput.value, '.');
+                        cursorPosition.value++;
+                    }
+                };
+
+                const appendText = (txt) => {
+                    currentInput.value = insertAtCursor(currentInput.value, txt);
+                    cursorPosition.value += txt.length;
+                };
+
+                const appendFunction = (func) => {
+                    const funcMap = {
+                        '√': '√()', 'x²': '()^(2)', 'x³': '()^(3)', 
+                        'x^y': '()^()', '10^x': '10^()',
+                        default: `${func}()`
+                    };
+                    const insertText = funcMap[func] || funcMap.default;
+                    currentInput.value = insertAtCursor(currentInput.value, insertText);
+                    cursorPosition.value += insertAtCursor(insertText, '').indexOf('(') + 1;
+                };
+
+                const appendOperator = (op) => {
+                    const before = currentInput.value.slice(0, cursorPosition.value);
+                    if (op === '-' && (before === '' || /[()]$/.test(before))) {
+                        currentInput.value = insertAtCursor(currentInput.value, op);
+                        cursorPosition.value++;
+                    } else if (/[\d)}]$/.test(before)) {
+                        currentInput.value = insertAtCursor(currentInput.value, op);
+                        cursorPosition.value++;
+                    }
+                };
+
+                const calculate = async () => {
+                    errorMessage.value = '';  
+                    loading.value = true;     
+                    showResult.value = false; 
+                    currentInput.value = currentInput.value.replace('×', '*'); 
+
+                    try {
+                        const requestBody = { 
+                            expression: currentInput.value, 
+                            unit: angleUnit.value 
+                        };
+
+                        const response = await fetch('http://10.244.23.143:8000/calculate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP请求失败，状态码：${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        // 检查后端返回的error字段
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+
+                        // 计算成功：覆盖输入并调整光标
+                        currentInput.value = String(data.result || '');
+                        cursorPosition.value = currentInput.value.length;
+                        unit.value = data.unit || '';              
+
+                    } catch (err) {
+                        // 显示错误对话框
+                        errorMessage.value = err.message || '计算失败，请检查输入';
+                        alert(errorMessage.value); // 弹出错误提示
+                        result.value = '';   
+                        unit.value = '';     
+                    } finally {
+                        loading.value = false; 
+                        showResult.value = false; // 隐藏结果区域
+                    }
+                };
+
+                const handleClear = () => {
+                    currentInput.value = '';
+                    cursorPosition.value = 0;
+                    showResult.value = false;
+                    errorMessage.value = '';
+                    result.value = '';
+                    unit.value = '';
+                };
+
+                const handleDelete = () => {
+                    if (cursorPosition.value > 0) {
+                        currentInput.value = currentInput.value.slice(0, cursorPosition.value - 1) + 
+                                            currentInput.value.slice(cursorPosition.value);
+                        cursorPosition.value--;
+                    }
+                };
+
+                return {
+                    currentInput, cursorPosition, isScientific, angleUnit,
+                    loading, errorMessage, cursorLeft,
+                    moveCursorLeft: () => cursorPosition.value = Math.max(0, cursorPosition.value - 1),
+                    moveCursorRight: () => cursorPosition.value = Math.min(currentInput.value.length, cursorPosition.value + 1),
+                    appendNumber, appendDecimal, appendText, appendFunction, appendOperator,
+                    handleClear, handleDelete, calculate,
+                    result, unit, showResult,
+                    inputRef, displayRef
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
