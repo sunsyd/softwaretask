@@ -1,0 +1,86 @@
+import requests
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+# 假设你的表达式解析函数
+from your_parser_module import parse_expression
+
+@app.route('/calculate', methods=['POST'])
+def handle_calculate():
+    data = request.get_json()
+    user_id = data.get("Id")
+    expression = data.get("Expression")
+
+    if not expression:
+        return jsonify({
+            "Success": False,
+            "errorType": "VALIDATION_ERROR",
+            "message": "缺少表达式",
+            "id": user_id
+        }), 400
+
+    try:
+        function_tree = parse_expression(expression)  # 你实现的解析器
+    except Exception as e:
+        return jsonify({
+            "Success": False,
+            "errorType": "SYNTAX_ERROR",
+            "message": str(e),
+            "id": user_id
+        }), 400
+
+    # 构造发送给后端的数据
+    backend_payload = {
+        "Id": user_id,
+        "FunctionTree": function_tree
+    }
+
+    try:
+        # 假设后端地址如下
+        resp = requests.post("http://localhost:8000/backend/calculate", json=backend_payload)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({
+            "Success": False,
+            "errorType": "NETWORK_ERROR",
+            "message": "无法连接计算服务：" + str(e),
+            "id": user_id
+        }), 500
+-------------------------------------------------------------------------------------------------------------------------
+一、改进背景
+为支持多用户操作、提高请求可追溯性，以及配合后端错误信息结构优化，系统在 V1.1 版本中引入了用户 ID（Id）字段。前端发送的每个计算请求需附带用户 ID，后端则将该 ID原样返回，便于前端识别和用户提示。
+
+二、功能改动概述
+1. 增加用户 ID 支持
+中间层现已支持接收前端传来的用户 ID，并在请求转发给后端时一并附带，用于标识每一条请求来源。该字段也会被用于记录日志和错误溯源。
+
+2. 请求结构调整
+原本仅处理表达式字符串的中间层接口，现已升级为同时处理用户 ID 与表达式内容，便于后续的分用户处理或个性化响应。
+
+3. 与后端交互结构增强
+后端现支持将用户 ID、错误类型和详细错误信息一并返回。中间层接收到后，不做格式修改，直接将原始响应结果反馈给前端，确保提示信息的完整性与一致性。
+
+4. 错误处理兼容性更新
+后端返回的错误类型现分为语法错误、数学错误与校验错误。中间层支持识别这些错误类型并原样透传，确保前端可以依据不同错误类型做出不同的提示与处理逻辑。
+
+三、升级意义
+实现用户请求可追踪
+
+支持更清晰的错误分类反馈
+
+提升系统的多用户协同处理能力
+
+为后续功能如用户操作记录分析、个性化推荐计算模式打下基础
+
+四、后续优化方向（建议）
+引入用户会话状态管理机制，实现跨请求上下文跟踪
+
+中间层记录计算历史日志，支持查询与分析
+
+增加请求节流与用户验证机制，确保系统稳定性
+
+
+
+
+
