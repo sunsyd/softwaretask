@@ -1,84 +1,85 @@
+具体代码
+import uuid
+import queue
+import threading
 import requests
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# 假设你的表达式解析函数
-from your_parser_module import parse_expression
+# 请求队列和结果映射池
+request_queue = queue.Queue()
+result_pool = {}
 
-@app.route('/calculate', methods=['POST'])
-def handle_calculate():
+# 后端服务地址（示例）
+BACKEND_URL = "http://localhost:8000/calculate"
+
+# 处理函数：转发请求至后端并接收响应
+def worker():
+    while True:
+        item = request_queue.get()
+        if item is None:
+            break
+        user_id, payload = item
+        try:
+            response = requests.post(BACKEND_URL, json=payload, timeout=5)
+            result = response.json()
+            result_pool[user_id] = result
+        except Exception as e:
+            result_pool[user_id] = {"error": str(e)}
+        request_queue.task_done()
+
+# 启动后台线程处理请求
+threading.Thread(target=worker, daemon=True).start()
+
+# 接收前端请求接口
+@app.route("/api/compute", methods=["POST"])
+def handle_request():
     data = request.get_json()
-    user_id = data.get("Id")
-    expression = data.get("Expression")
+    expression = data.get("expression")
+    unit = data.get("unit", "rad")
 
-    if not expression:
-        return jsonify({
-            "Success": False,
-            "errorType": "VALIDATION_ERROR",
-            "message": "缺少表达式",
-            "id": user_id
-        }), 400
+    # 生成唯一 ID
+    user_id = str(uuid.uuid4())
 
-    try:
-        function_tree = parse_expression(expression)  # 你实现的解析器
-    except Exception as e:
-        return jsonify({
-            "Success": False,
-            "errorType": "SYNTAX_ERROR",
-            "message": str(e),
-            "id": user_id
-        }), 400
-
-    # 构造发送给后端的数据
-    backend_payload = {
-        "Id": user_id,
-        "FunctionTree": function_tree
+    # 构造完整请求体
+    payload = {
+        "expression": expression,
+        "unit": unit,
+        "ID": user_id
     }
 
-    try:
-        # 假设后端地址如下
-        resp = requests.post("http://localhost:8000/backend/calculate", json=backend_payload)
-        return jsonify(resp.json()), resp.status_code
-    except Exception as e:
-        return jsonify({
-            "Success": False,
-            "errorType": "NETWORK_ERROR",
-            "message": "无法连接计算服务：" + str(e),
-            "id": user_id
-        }), 500
+    # 放入消息队列等待处理
+    request_queue.put((user_id, payload))
+
+    # 等待后端计算完成（最多等待 3 秒）
+    timeout = 3
+    waited = 0.0
+    while user_id not in result_pool and waited < timeout:
+        threading.Event().wait(0.1)
+        waited += 0.1
+
+    # 提取结果
+    if user_id in result_pool:
+        result = result_pool.pop(user_id)
+        return jsonify(result)
+    else:
+        return jsonify({"error": "Timeout waiting for result."}), 504
+
+if __name__ == "__main__":
+    app.run(port=5000, debug=True)
+
 -------------------------------------------------------------------------------------------------------------------------
-一、改进背景
-为支持多用户操作、提高请求可追溯性，以及配合后端错误信息结构优化，系统在 V1.1 版本中引入了用户 ID（Id）字段。前端发送的每个计算请求需附带用户 ID，后端则将该 ID原样返回，便于前端识别和用户提示。
+内容包括：
+1.接收前端请求（包含表达式和单位）；
 
-二、功能改动概述
-1. 增加用户 ID 支持
-中间层现已支持接收前端传来的用户 ID，并在请求转发给后端时一并附带，用于标识每一条请求来源。该字段也会被用于记录日志和错误溯源。
+2.为每个请求生成唯一 ID；
 
-2. 请求结构调整
-原本仅处理表达式字符串的中间层接口，现已升级为同时处理用户 ID 与表达式内容，便于后续的分用户处理或个性化响应。
+3.将请求放入消息队列中；
 
-3. 与后端交互结构增强
-后端现支持将用户 ID、错误类型和详细错误信息一并返回。中间层接收到后，不做格式修改，直接将原始响应结果反馈给前端，确保提示信息的完整性与一致性。
+4.后台线程将请求发送到后端服务；
 
-4. 错误处理兼容性更新
-后端返回的错误类型现分为语法错误、数学错误与校验错误。中间层支持识别这些错误类型并原样透传，确保前端可以依据不同错误类型做出不同的提示与处理逻辑。
-
-三、升级意义
-实现用户请求可追踪
-
-支持更清晰的错误分类反馈
-
-提升系统的多用户协同处理能力
-
-为后续功能如用户操作记录分析、个性化推荐计算模式打下基础
-
-四、后续优化方向（建议）
-引入用户会话状态管理机制，实现跨请求上下文跟踪
-
-中间层记录计算历史日志，支持查询与分析
-
-增加请求节流与用户验证机制，确保系统稳定性
+5.接收后端响应后根据 ID 返回结果给前端。
 
 
 
