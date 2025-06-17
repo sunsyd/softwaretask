@@ -272,7 +272,7 @@
                         try {
                             pollCount++; // 每次轮询递增计数器
                             
-                            const response = await fetch(`http://10.244.23.143:8000/calculator/result/${requestId}`);
+                            const response = await fetch(`http://10.244.23.143:44310/calculator/result/${requestId}`);
                             const data = await response.json();
 
                             if (data.status === 'completed') {
@@ -330,7 +330,7 @@
                             unit: angleUnit.value 
                         };
 
-                        const response = await fetch('http://10.244.23.143:8000/calculator/calculate', {
+                        const response = await fetch('http://10.244.23.143:44310/calculator/calculate', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(requestBody)
