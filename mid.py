@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timedelta
 
 # 配置项
-BACKEND_URL = "https://10.244.121.103:44310/calculator/calculate"
+BACKEND_URL = "https://10.244.200.237:44310/calculator/calculate"
 MAX_QUEUE_SIZE = 100
 REQUEST_TIMEOUT = 15
 RESULT_EXPIRE_SECONDS = 300  # 结果缓存5分钟过期
@@ -77,17 +77,19 @@ def process_queue(app_instance):
                 backend_data = backend_response.json()
                 result = {
                     "success": True,
-                    "data": backend_data["Result"],
+                    "data": backend_data["Result"] ,
                     # "unit": backend_data.get("unit", ""),
+                    #"errorType": backend_data["errorType"],
                     "request_id": backend_data["Id"],
                     "timestamp": datetime.now().isoformat()
                 }
                 log_request(request_id, "后端处理成功", f"结果: {result['data']}")
 
+
             except requests.exceptions.RequestException as e:
                 result = {
                     "success": False,
-                    "error": f"后端请求失败: {str(e)}",
+                    "data": f"计算失败请检查计算式！",
                     "request_id": request_id,
                     "timestamp": datetime.now().isoformat()
                 }
