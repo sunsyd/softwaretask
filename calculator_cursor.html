@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>精准光标定位的Vue计算器（带错误提示）</title>
+    <title>软件工程程序-计算器</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
@@ -86,6 +86,17 @@
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
     <div id="app" class="bg-white rounded-lg shadow-2xl max-w-2xl w-full">
         <div class="p-4 md:p-6">
+            <!-- 添加 IP 输入框 -->
+            <div class="mb-4">
+                <label for="ip-input" class="block text-sm font-medium text-gray-700">输入服务IP地址:</label>
+                <input 
+                    type="text" 
+                    id="ip-input" 
+                    v-model="ipAddress" 
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="例如: 127.0.0.1"
+                >
+            </div>
             <!-- 模式与单位切换 -->
             <div class="mb-4 flex gap-3 flex-wrap">
                 <button 
@@ -193,7 +204,8 @@
                 const polling = ref(false);     // 新增：轮询状态
                 let pollTimer = null;           // 新增：轮询定时器
                 let pollStart = 0;              // 明确声明 pollStart 在 setup 作用域内
-
+                // 新增：存储 IP 地址的变量
+                const ipAddress = ref('');
                 
                 // 光标位置计算
                 const cursorLeft = computed(() => {
@@ -272,7 +284,7 @@
                         try {
                             pollCount++; // 每次轮询递增计数器
                             
-                            const response = await fetch(`http://10.244.23.143:44310/calculator/result/${requestId}`);
+                            const response = await fetch(`http://${ipAddress.value}:8000/calculator/result/${requestId}`);
                             const data = await response.json();
 
                             if (data.status === 'completed') {
@@ -284,7 +296,7 @@
                                     unit.value = data.result.unit || '';
                                     showResult.value = true;
                                 } else {
-                                    errorMessage.value = data.result?.error || '计算失败';
+                                    errorMessage.value = data.result?.error || '计算失败,请检查计算式！';
                                     alert(errorMessage.value);
                                 }
                                 return;
@@ -330,7 +342,7 @@
                             unit: angleUnit.value 
                         };
 
-                        const response = await fetch('http://10.244.23.143:44310/calculator/calculate', {
+                        const response = await fetch(`http://${ipAddress.value}:8000/calculator/calculate`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(requestBody)
@@ -384,7 +396,8 @@
                     appendNumber, appendDecimal, appendText, appendFunction, appendOperator,
                     handleClear, handleDelete, calculate,
                     result, unit, showResult,
-                    inputRef, displayRef
+                    inputRef, displayRef,
+                    ipAddress
                 };
             }
         }).mount('#app');
