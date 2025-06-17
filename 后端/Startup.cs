@@ -11,18 +11,18 @@ public class Startup
         services.AddControllers()
             .AddJsonOptions(options =>
         {
-            options.JsonSerializerOptions.PropertyNamingPolicy = null; // ½ûÓÃÍÕ·åÃüÃû·¨
+            options.JsonSerializerOptions.PropertyNamingPolicy = null; // ç¦ç”¨é©¼å³°å‘½åæ³•
         });
 
-        // Ìí¼ÓCORS²ßÂÔ£¨ÔÊÐíËùÓÐÀ´Ô´¡¢·½·¨¡¢Í·²¿£©
+        // æ·»åŠ CORSç­–ç•¥ï¼ˆå…è®¸æ‰€æœ‰æ¥æºã€æ–¹æ³•ã€å¤´éƒ¨ï¼‰
         services.AddCors(options =>
         {
             options.AddPolicy("AllowAll", builder =>
             {
                 builder
-                    .AllowAnyOrigin()  // ÔÊÐíËùÓÐÀ´Ô´
-                    .AllowAnyMethod()  // ÔÊÐíËùÓÐHTTP·½·¨
-                    .AllowAnyHeader(); // ÔÊÐíËùÓÐÇëÇóÍ·
+                    .AllowAnyOrigin()  // å…è®¸æ‰€æœ‰æ¥æº
+                    .AllowAnyMethod()  // å…è®¸æ‰€æœ‰HTTPæ–¹æ³•
+                    .AllowAnyHeader(); // å…è®¸æ‰€æœ‰è¯·æ±‚å¤´
             });
         });
     }
@@ -31,8 +31,8 @@ public class Startup
     {
         app.UseRouting();
 
-        // ÆôÓÃCORSÖÐ¼ä¼þ
-        app.UseCors("AllowAll"); // Ó¦ÓÃÃûÎª"AllowAll"µÄ²ßÂÔ
+        // å¯ç”¨CORSä¸­é—´ä»¶
+        app.UseCors("AllowAll"); // åº”ç”¨åä¸º"AllowAll"çš„ç­–ç•¥
 
         app.UseEndpoints(endpoints => endpoints.MapControllers());
     }
