@@ -11,8 +11,8 @@ namespace CalculatorBackend
                 .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
-                    logging.AddConsole(); // 输出日志到控制台
-                logging.SetMinimumLevel(LogLevel.Debug); // 显示所有级别的日志
+                    logging.AddConsole(); // 杈撳嚭鏃ュ織鍒版帶鍒跺彴
+                logging.SetMinimumLevel(LogLevel.Debug); // 鏄剧ず鎵�鏈夌骇鍒殑鏃ュ織
             })
                 .ConfigureWebHostDefaults(web => web.UseStartup<Startup>().UseUrls("http://*:5000"))
                 .Build()
